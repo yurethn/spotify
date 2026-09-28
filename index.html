@@ -33,7 +33,7 @@ svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:1.8;stroke
 @media(min-width:700px){.coverWrap{width:92%}.trackRow,.timeline,.transport,.secondaryRow,.lyricsCard{width:92%;margin-left:auto;margin-right:auto}}
 </style></head>
 <body><main class="app">
-<div class="topbar"><div class="brand">Random Spotify</div><div class="badge">v13 · playback fixed</div></div>
+<div class="topbar"><div class="brand">Random Spotify</div><div class="badge">v14 · autoplay next</div></div>
 <div class="card">
 <section id="login" class="loginBox">
 <p>Spotify 카탈로그를 무작위로 탐색하고 이 페이지 안에서 재생합니다.</p>
@@ -88,6 +88,8 @@ let currentDuration = 0;
 let syncedLines = [];
 let activeLyricIndex = -1;
 let currentTrack = null;
+let autoAdvancing = false;
+let lastPlaybackPosition = 0;
 
 const seeds = ['a','e','i','o','u','b','c','d','f','g','h','j','k','l','m','n','p','r','s','t','w','y','가','나','다','라','마','사','아','愛','夜','the','love','blue','moon','1','2','3','7','9'];
 
@@ -209,8 +211,18 @@ async function initPlayer() {
   player.addListener('player_state_changed', state => {
     if (!state) return;
     currentDuration = state.duration || currentDuration;
-    if (!isScrubbing) updateTimeline(state.position || 0, currentDuration);
+    const position = state.position || 0;
+    if (!isScrubbing) updateTimeline(position, currentDuration);
     $('playPauseIcon').innerHTML = !state.paused ? '<path d="M7 5h4v14H7zM14 5h4v14h-4z"/>' : '<path d="M8 5v14l11-7z"/>';
+    const naturallyEnded = currentTrack && state.paused && position === 0 && currentDuration > 0 && lastPlaybackPosition > Math.max(3000, currentDuration - 3000);
+    if (naturallyEnded && !autoAdvancing) {
+      autoAdvancing = true;
+      setTimeout(async () => {
+        try { await randomTrack(); }
+        finally { autoAdvancing = false; }
+      }, 250);
+    }
+    if (position > 0) lastPlaybackPosition = position;
   });
   await player.connect();
 }
@@ -471,6 +483,7 @@ async function randomTrack() {
     if (!track) throw new Error('랜덤 곡을 찾지 못했어. 다시 눌러줘.');
 
     currentTrack = track;
+    lastPlaybackPosition = 0;
     setCover(track);
     $('name').textContent = track.name;
     $('artist').textContent = track.artists.map(a => a.name).join(', '); $('headAlbum').textContent = track.album?.name || 'DISCOVERY';
