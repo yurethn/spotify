@@ -12,13 +12,13 @@ linear-gradient(180deg,#111 0%,#090909 45%,#050505 100%);padding:22px}
 .brand{font-weight:900;letter-spacing:-.5px;font-size:22px}
 .badge{font-size:12px;color:#8f8f8f;background:#151515;border:1px solid #242424;padding:7px 10px;border-radius:999px}
 .card{background:linear-gradient(180deg,rgba(30,30,30,.95),rgba(15,15,15,.98));border:1px solid #242424;border-radius:30px;padding:20px;box-shadow:0 28px 80px rgba(0,0,0,.45);backdrop-filter:blur(20px)}
-.coverWrap{position:relative}
+.coverWrap{position:relative;isolation:isolate}.coverGlow{position:absolute;inset:8%;z-index:-1;filter:blur(52px);opacity:.42;border-radius:40px;transform:scale(1.12);transition:background .4s ease}
 .cover{width:100%;aspect-ratio:1;border-radius:22px;object-fit:cover;background:#181818;box-shadow:0 24px 60px rgba(0,0,0,.45)}
 .nowpill{position:absolute;left:14px;top:14px;background:rgba(0,0,0,.65);backdrop-filter:blur(10px);padding:7px 10px;border-radius:999px;font-size:12px;font-weight:800}
 .title{font-size:30px;line-height:1.08;font-weight:900;letter-spacing:-.8px;margin:20px 0 7px;text-align:left}
 .artist{color:#b6b6b6;font-size:17px;text-align:left;margin-bottom:18px}
 .timeline{margin:8px 0 14px}
-.seek{width:100%;accent-color:var(--green)}
+.seek{-webkit-appearance:none;appearance:none;width:100%;height:4px;background:linear-gradient(to right,var(--green) 0%,var(--green) var(--seek-pct,0%),#3a3a3a var(--seek-pct,0%),#3a3a3a 100%);border:0;border-radius:999px;outline:0}.seek::-webkit-slider-runnable-track{height:4px;background:transparent;border:0}.seek::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:0;height:0;border:0;background:transparent}.seek::-moz-range-thumb{width:0;height:0;border:0;background:transparent}
 .times{display:flex;justify-content:space-between;color:#929292;font-size:12px;margin-top:4px}
 .controls{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:12px;margin:8px 0 16px}
 .iconBtn{border:0;background:#222;color:#fff;border-radius:999px;width:52px;height:52px;font-size:22px;font-weight:800}
@@ -40,14 +40,14 @@ linear-gradient(180deg,#111 0%,#090909 45%,#050505 100%);padding:22px}
 @media (min-width:800px){.card{padding:26px}.cover{border-radius:26px}}
 </style></head>
 <body><main class="app">
-<div class="topbar"><div class="brand">Random Spotify</div><div class="badge">v6 · live lyrics</div></div>
+<div class="topbar"><div class="brand">Random Spotify</div><div class="badge">v7 · refined player</div></div>
 <div class="card">
 <section id="login" class="loginBox">
 <p>Spotify 카탈로그를 무작위로 탐색하고 이 페이지 안에서 재생합니다.</p>
 <button class="loginBtn" id="loginBtn">Spotify 로그인</button>
 </section>
 <section id="player" class="hide">
-<div class="coverWrap"><img class="cover" id="cover"><div class="nowpill">NOW PLAYING</div></div>
+<div class="coverWrap"><div class="coverGlow" id="coverGlow"></div><img class="cover" id="cover" crossorigin="anonymous"><div class="nowpill">NOW PLAYING</div></div>
 <div class="title" id="name">Ready</div>
 <div class="artist" id="artist">—</div>
 <div class="timeline"><input class="seek" id="seek" type="range" min="0" max="1000" value="0"><div class="times"><span id="pos">0:00</span><span id="dur">0:00</span></div></div>
@@ -74,7 +74,7 @@ async function initPlayer(){if(webPlayer||!window.Spotify)return;webPlayer=new S
 function fmt(ms){let s=Math.floor(ms/1000),m=Math.floor(s/60);return m+":"+String(s%60).padStart(2,"0")}
 let syncedLines=[], currentLyricIndex=-1;
 function updateTimeline(p,d){
-  $("pos").textContent=fmt(p||0);$("dur").textContent=fmt(d||0);$("seek").value=d?Math.round(p/d*1000):0;
+  $("pos").textContent=fmt(p||0);$("dur").textContent=fmt(d||0);const pct=d?Math.round(p/d*1000):0;$("seek").value=pct;$("seek").style.setProperty("--seek-pct",(pct/10)+"%");
   updateLiveLyrics(p||0);
 }
 $("seek").addEventListener("change",async e=>{if(!webPlayer)return;let s=await webPlayer.getCurrentState();if(s)await webPlayer.seek(s.duration*(+e.target.value/1000));});
@@ -108,8 +108,9 @@ function updateLiveLyrics(position){
   currentLyricIndex=idx;
   const els=[...$("lyrics").querySelectorAll(".lyricLine")];
   els.forEach((el,i)=>{el.classList.toggle("active",i===idx);el.classList.toggle("past",i<idx)});
-  const active=els[idx]; if(active) active.scrollIntoView({block:"center",behavior:"smooth"});
+  const active=els[idx];if(active){const card=$("lyricsCard");card.scrollTo({top:Math.max(0,active.offsetTop-card.clientHeight/2+active.clientHeight/2),behavior:"smooth"});}
 }
+function albumGlow(img){const glow=$("coverGlow");const cv=document.createElement("canvas");cv.width=cv.height=20;const x=cv.getContext("2d");const run=()=>{try{x.drawImage(img,0,0,20,20);const d=x.getImageData(0,0,20,20).data;let r=0,g=0,b=0,n=0;for(let i=0;i<d.length;i+=16){if(d[i+3]<100)continue;r+=d[i];g+=d[i+1];b+=d[i+2];n++}if(n)glow.style.background="radial-gradient(circle,rgba("+Math.round(r/n)+","+Math.round(g/n)+","+Math.round(b/n)+",.95),transparent 70%)"}catch(e){}};img.complete?run():img.addEventListener("load",run,{once:true})}
 async function loadLyrics(track){
   const card=$("lyricsCard"),box=$("lyrics"),hint=$("lyricsHint");
   card.classList.add("hide"); box.innerHTML=""; hint.textContent=""; syncedLines=[]; currentLyricIndex=-1;
@@ -143,7 +144,7 @@ async function token(code){let r=await fetch(A+"/api/token",{method:"POST",heade
 async function getToken(){if(localStorage.t&&Date.now()<+localStorage.exp)return localStorage.t;if(!localStorage.r)return null;let r=await fetch(A+"/api/token",{method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded"},body:new URLSearchParams({client_id:CLIENT_ID,grant_type:"refresh_token",refresh_token:localStorage.r})}),d=await r.json();if(!r.ok)return null;localStorage.t=d.access_token;localStorage.exp=Date.now()+(d.expires_in-30)*1000;return d.access_token}
 async function api(p){let t=await getToken(),r=await fetch(API+p,{headers:{Authorization:"Bearer "+t}}),d=await r.json();if(!r.ok)throw Error(d.error?.message||"Spotify API error");return d}
 const seeds=["a","e","i","o","u","b","c","d","f","g","h","j","k","l","m","n","p","r","s","t","w","y","가","나","다","라","마","사","아","愛","夜","the","love","blue","moon","1","2","3","7","9"];
-async function randomTrack(){let st=$("status");st.textContent="랜덤 탐색 중…";try{let track=null;for(let tries=0;tries<8&&!track;tries++){let q=seeds[ri(seeds.length)],f=await api("/search?type=track&limit=10&q="+encodeURIComponent(q));let total=f.tracks?.total||0;if(!total)continue;let max=Math.min(Math.max(total-10,0),990),off=max?ri(Math.floor(max/10)+1)*10:0,d=off?await api("/search?type=track&limit=10&offset="+off+"&q="+encodeURIComponent(q)):f,items=d.tracks?.items||[];if(items.length)track=items[ri(items.length)]}if(!track)throw Error("곡을 못 찾았어. 다시 눌러줘.");$("cover").src=track.album?.images?.[0]?.url||"";$("name").textContent=track.name;$("artist").textContent=track.artists.map(x=>x.name).join(", ");$("open").href=track.external_urls.spotify;window.lastTrackUrl=track.external_urls.spotify;updateTimeline(0,track.duration_ms);loadLyrics(track);st.textContent="재생 시작 중…";await playHere(track.uri);st.textContent="▶ 사이트에서 재생 중"}catch(e){st.textContent=e.message}}
+async function randomTrack(){let st=$("status");st.textContent="랜덤 탐색 중…";try{let track=null;for(let tries=0;tries<8&&!track;tries++){let q=seeds[ri(seeds.length)],f=await api("/search?type=track&limit=10&q="+encodeURIComponent(q));let total=f.tracks?.total||0;if(!total)continue;let max=Math.min(Math.max(total-10,0),990),off=max?ri(Math.floor(max/10)+1)*10:0,d=off?await api("/search?type=track&limit=10&offset="+off+"&q="+encodeURIComponent(q)):f,items=d.tracks?.items||[];if(items.length)track=items[ri(items.length)]}if(!track)throw Error("곡을 못 찾았어. 다시 눌러줘.");$("cover").src=track.album?.images?.[0]?.url||"";albumGlow($("cover"));$("name").textContent=track.name;$("artist").textContent=track.artists.map(x=>x.name).join(", ");$("open").href=track.external_urls.spotify;window.lastTrackUrl=track.external_urls.spotify;updateTimeline(0,track.duration_ms);loadLyrics(track);st.textContent="재생 시작 중…";await playHere(track.uri);st.textContent="▶ 사이트에서 재생 중"}catch(e){st.textContent=e.message}}
 $("random").onclick=randomTrack;
 $("playPause").onclick=async()=>{if(webPlayer)await webPlayer.togglePlay()};
 $("prevRandom").onclick=()=>{ if(window.lastTrackUrl) window.open(window.lastTrackUrl,"_blank"); };
