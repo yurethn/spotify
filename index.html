@@ -30,11 +30,15 @@ linear-gradient(180deg,#111 0%,#090909 45%,#050505 100%);padding:22px}
 .randomBtn{border:0;background:var(--green);color:#08120b;border-radius:999px;padding:17px 24px;font-size:17px;font-weight:900;box-shadow:0 10px 30px rgba(30,215,96,.2)}
 .openBtn{display:block;text-decoration:none;text-align:center;background:#202020;color:#fff;border-radius:999px;padding:14px;font-weight:800;margin-top:10px}
 .status{color:#8c8c8c;font-size:13px;line-height:1.5;margin:14px 2px 0}
-.lyricsCard{margin-top:18px;background:linear-gradient(180deg,#1a1a1a,#111);border:1px solid #242424;border-radius:28px;padding:22px;max-height:52vh;overflow:auto;text-align:left}
-.lyricsHead{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+.lyricsCard{margin-top:18px;background:transparent;border:0;border-radius:0;padding:0;max-height:none;overflow:hidden;text-align:left;cursor:pointer}
+.lyricsViewport{position:relative;height:112px;overflow:hidden;mask-image:linear-gradient(to bottom,transparent 0,#000 16%,#000 84%,transparent 100%);-webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 16%,#000 84%,transparent 100%)}
+.lyricsTrack{transition:transform .35s ease}
+.lyricsCard.expanded .lyricsViewport{height:auto;max-height:56vh;overflow:auto;mask-image:none;-webkit-mask-image:none}
+.lyricsCard.expanded .lyricsTrack{transform:none!important}
+.lyricsHead{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
 .lyricsHead h2{font-size:22px;margin:0}
 .lyricsHint{font-size:12px;color:#777}
-.lyricLine{font-size:24px;line-height:1.34;font-weight:800;color:#666;margin:12px 0;transition:.18s ease;cursor:pointer}
+.lyricLine{display:block;width:100%;appearance:none;border:0;background:transparent;padding:0;text-align:left;font-size:24px;line-height:1.34;font-weight:800;color:#666;margin:12px 0;transition:.18s ease;cursor:pointer}
 .lyricLine.active{color:#fff;transform:scale(1.01);transform-origin:left center}
 .lyricLine.past{color:#a8a8a8}
 .plainLyrics{white-space:pre-wrap;font-size:18px;line-height:1.75;color:#ddd}
@@ -45,7 +49,7 @@ linear-gradient(180deg,#111 0%,#090909 45%,#050505 100%);padding:22px}
 @media (min-width:800px){.card{padding:26px}.cover{border-radius:26px}}
 </style></head>
 <body><main class="app">
-<div class="topbar"><div class="brand">Random Spotify</div><div class="badge">v9 · stable</div></div>
+<div class="topbar"><div class="brand">Random Spotify</div><div class="badge">v10 · compact lyrics</div></div>
 <div class="card">
 <section id="login" class="loginBox">
 <p>Spotify 카탈로그를 무작위로 탐색하고 이 페이지 안에서 재생합니다.</p>
@@ -63,8 +67,8 @@ linear-gradient(180deg,#111 0%,#090909 45%,#050505 100%);padding:22px}
 <a class="openBtn" id="open" target="_blank">Spotify에서 열기</a>
 <div class="status" id="status">버튼을 눌러 랜덤곡을 뽑아.</div>
 <div class="lyricsCard hide" id="lyricsCard">
-<div class="lyricsHead"><h2>Lyrics</h2><div class="lyricsHint" id="lyricsHint"></div></div>
-<div id="lyrics"></div>
+<div class="lyricsHead"><h2>Lyrics</h2><div class="lyricsHint" id="lyricsHint">눌러서 전체 보기</div></div>
+<div class="lyricsViewport" id="lyricsViewport"><div class="lyricsTrack" id="lyrics"></div></div>
 </div>
 </section>
 </div>
@@ -287,6 +291,7 @@ function renderSyncedLyrics(lines) {
   activeLyricIndex = -1;
   const box = $('lyrics');
   box.innerHTML = '';
+  box.style.transform = 'translateY(0)';
   lines.forEach(line => {
     const div = document.createElement('button');
     div.type = 'button';
@@ -316,8 +321,16 @@ function updateLiveLyrics(position) {
   const active = lines[idx];
   if (active) {
     const card = $('lyricsCard');
-    const target = active.offsetTop - card.clientHeight / 2 + active.clientHeight / 2;
-    card.scrollTo({top: Math.max(0, target), behavior: 'smooth'});
+    if (card.classList.contains('expanded')) {
+      const viewport = $('lyricsViewport');
+      const target = active.offsetTop - viewport.clientHeight / 2 + active.clientHeight / 2;
+      viewport.scrollTo({top: Math.max(0, target), behavior: 'smooth'});
+    } else {
+      const track = $('lyrics');
+      const prev = lines[Math.max(0, idx - 1)];
+      const top = prev ? prev.offsetTop : active.offsetTop;
+      track.style.transform = 'translateY(' + (-Math.max(0, top - 8)) + 'px)';
+    }
   }
 }
 
@@ -479,6 +492,12 @@ async function init() {
     if (player) await player.togglePlay();
   });
   bindSeekBar();
+  $('lyricsCard').addEventListener('click', e => {
+    if (e.target.classList.contains('lyricLine')) return;
+    const card = $('lyricsCard');
+    card.classList.toggle('expanded');
+    $('lyricsHint').textContent = card.classList.contains('expanded') ? '눌러서 접기' : '눌러서 전체 보기';
+  });
 
   const params = new URLSearchParams(location.search);
   if (params.get('error')) throw new Error('Spotify 로그인 오류: ' + params.get('error'));
