@@ -14,8 +14,8 @@ button{cursor:pointer}
 .headMeta{text-align:center;min-width:0;text-transform:uppercase}.headMeta span{display:block;font-size:10px;letter-spacing:1.1px;font-weight:700;color:#ddd}.headMeta strong{display:block;font-size:11px;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 .ghostIcon{width:42px;height:42px;border:0;background:transparent;color:#fff;padding:9px}.ghostIcon svg{width:24px;height:24px}
-.coverWrap{position:relative;isolation:isolate;margin:0 auto;width:100%}.coverGlow{position:absolute;inset:12% 7% -5%;z-index:-1;filter:blur(65px) saturate(1.35);opacity:.32;background-size:cover;background-position:center;transform:scale(1.05)}
-.cover{display:block;width:100%;aspect-ratio:1;object-fit:cover;border-radius:7px;background:#181818;box-shadow:0 18px 55px rgba(0,0,0,.5)}
+.coverWrap{position:relative;isolation:isolate;margin:0 auto;width:100%;aspect-ratio:1;background:#181818;border-radius:7px;overflow:visible}.coverGlow{position:absolute;inset:12% 7% -5%;z-index:-1;filter:blur(65px) saturate(1.35);opacity:.32;background-size:cover;background-position:center;transform:scale(1.05)}
+.cover{display:block;width:100%;height:100%;object-fit:cover;border-radius:7px;background:#181818;box-shadow:0 18px 55px rgba(0,0,0,.5);opacity:0;transition:opacity .22s ease}.cover.loaded{opacity:1}
 .trackRow{display:flex;align-items:center;gap:16px;margin:24px 2px 17px}.trackText{min-width:0;flex:1}.title{font-size:23px;line-height:1.15;font-weight:750;letter-spacing:-.45px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.artist{font-size:15px;color:var(--muted);margin-top:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .saveIcon{flex:0 0 38px;width:38px;height:38px;border:0;background:transparent;color:var(--muted);padding:7px}.saveIcon svg{width:25px;height:25px}
 .timeline{margin:0 2px 5px}.seek{-webkit-appearance:none;appearance:none;width:100%;height:4px;margin:0;display:block;border:0;border-radius:999px;outline:0;background:linear-gradient(to right,#fff 0,#fff var(--seek-pct,0%),rgba(255,255,255,.28) var(--seek-pct,0%),rgba(255,255,255,.28) 100%);touch-action:none}
@@ -33,7 +33,7 @@ svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:1.8;stroke
 @media(min-width:700px){.coverWrap{width:92%}.trackRow,.timeline,.transport,.secondaryRow,.lyricsCard{width:92%;margin-left:auto;margin-right:auto}}
 </style></head>
 <body><main class="app">
-<div class="topbar"><div class="brand">Random Spotify</div><div class="badge">v12 · now playing</div></div>
+<div class="topbar"><div class="brand">Random Spotify</div><div class="badge">v13 · playback fixed</div></div>
 <div class="card">
 <section id="login" class="loginBox">
 <p>Spotify 카탈로그를 무작위로 탐색하고 이 페이지 안에서 재생합니다.</p>
@@ -47,7 +47,7 @@ svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:1.8;stroke
 </div>
 <div class="coverWrap"><div class="coverGlow" id="coverGlow"></div><img class="cover" id="cover"></div>
 <div class="trackRow">
-<div class="trackText"><div class="title" id="name">Ready</div><div class="artist" id="artist">—</div></div>
+<div class="trackText"><div class="title" id="name">Choose a random track</div><div class="artist" id="artist">Random Spotify</div></div>
 <button class="saveIcon" id="saveVisual" aria-label="save"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg></button>
 </div>
 <div class="timeline"><input class="seek" id="seek" type="range" min="0" max="1000" value="0"><div class="times"><span id="pos">0:00</span><span id="dur">0:00</span></div></div>
@@ -87,6 +87,7 @@ let isScrubbing = false;
 let currentDuration = 0;
 let syncedLines = [];
 let activeLyricIndex = -1;
+let currentTrack = null;
 
 const seeds = ['a','e','i','o','u','b','c','d','f','g','h','j','k','l','m','n','p','r','s','t','w','y','가','나','다','라','마','사','아','愛','夜','the','love','blue','moon','1','2','3','7','9'];
 
@@ -419,8 +420,18 @@ async function fetchLyrics(track) {
 
 function setCover(track) {
   const url = track.album?.images?.[0]?.url || '';
-  $('cover').src = url;
-  $('coverGlow').style.backgroundImage = url ? 'url("' + url + '")' : 'none';
+  const img = $('cover');
+  img.classList.remove('loaded');
+  img.removeAttribute('src');
+  $('coverGlow').style.backgroundImage = 'none';
+  if (!url) return;
+  img.onload = () => img.classList.add('loaded');
+  img.onerror = () => {
+    img.classList.remove('loaded');
+    img.removeAttribute('src');
+  };
+  img.src = url;
+  $('coverGlow').style.backgroundImage = 'url("' + url + '")';
 }
 
 async function playTrack(track) {
@@ -459,6 +470,7 @@ async function randomTrack() {
 
     if (!track) throw new Error('랜덤 곡을 찾지 못했어. 다시 눌러줘.');
 
+    currentTrack = track;
     setCover(track);
     $('name').textContent = track.name;
     $('artist').textContent = track.artists.map(a => a.name).join(', '); $('headAlbum').textContent = track.album?.name || 'DISCOVERY';
@@ -486,13 +498,27 @@ async function init() {
   $('loginBtn').addEventListener('click', beginLogin);
   $('random').addEventListener('click', randomTrack);
   $('playPause').addEventListener('click', async () => {
-    if (!player) return;
-    await player.togglePlay();
-    const s = await player.getCurrentState();
-    $('playPauseIcon').innerHTML = s && !s.paused ? '<path d="M7 5h4v14H7zM14 5h4v14h-4z"/>' : '<path d="M8 5v14l11-7z"/>';
+    try {
+      if (!currentTrack) {
+        await randomTrack();
+        return;
+      }
+      if (!player) await initPlayer();
+      const state = await player?.getCurrentState();
+      if (!state) {
+        await playTrack(currentTrack);
+        return;
+      }
+      await player.togglePlay();
+      const s = await player.getCurrentState();
+      $('playPauseIcon').innerHTML = s && !s.paused ? '<path d="M7 5h4v14H7zM14 5h4v14h-4z"/>' : '<path d="M8 5v14l11-7z"/>';
+    } catch (e) {
+      setStatus(e.message || String(e));
+    }
   });
   $('nextRandom').addEventListener('click', randomTrack);
   $('back15').addEventListener('click', async () => {
+    if (!currentTrack) return;
     try {
       const s = await player?.getCurrentState();
       if (s) await seekTo(Math.max(0, s.position - 15000));
