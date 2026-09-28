@@ -33,7 +33,7 @@ svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:1.8;stroke
 @media(min-width:700px){.coverWrap{width:92%}.trackRow,.timeline,.transport,.secondaryRow,.lyricsCard{width:92%;margin-left:auto;margin-right:auto}}
 </style></head>
 <body><main class="app">
-<div class="topbar"><div class="brand">Random Spotify</div><div class="badge">v14 · autoplay next</div></div>
+<div class="topbar"><div class="brand">Random Spotify</div><div class="badge">v15 · reliable autoplay</div></div>
 <div class="card">
 <section id="login" class="loginBox">
 <p>Spotify 카탈로그를 무작위로 탐색하고 이 페이지 안에서 재생합니다.</p>
@@ -90,6 +90,8 @@ let activeLyricIndex = -1;
 let currentTrack = null;
 let autoAdvancing = false;
 let lastPlaybackPosition = 0;
+let nearEndSeen = false;
+let currentTrackId = null;
 
 const seeds = ['a','e','i','o','u','b','c','d','f','g','h','j','k','l','m','n','p','r','s','t','w','y','가','나','다','라','마','사','아','愛','夜','the','love','blue','moon','1','2','3','7','9'];
 
@@ -214,13 +216,19 @@ async function initPlayer() {
     const position = state.position || 0;
     if (!isScrubbing) updateTimeline(position, currentDuration);
     $('playPauseIcon').innerHTML = !state.paused ? '<path d="M7 5h4v14H7zM14 5h4v14h-4z"/>' : '<path d="M8 5v14l11-7z"/>';
-    const naturallyEnded = currentTrack && state.paused && position === 0 && currentDuration > 0 && lastPlaybackPosition > Math.max(3000, currentDuration - 3000);
-    if (naturallyEnded && !autoAdvancing) {
+    if (currentDuration > 0 && position >= currentDuration - 2500) nearEndSeen = true;
+    const stateTrackId = state.track_window?.current_track?.id || null;
+    const trackChangedAfterEnd = nearEndSeen && currentTrackId && stateTrackId && stateTrackId !== currentTrackId;
+    const resetAfterEnd = nearEndSeen && state.paused && position < 1200;
+    const stoppedAtEnd = nearEndSeen && state.paused && currentDuration > 0 && position >= currentDuration - 2500;
+    if ((trackChangedAfterEnd || resetAfterEnd || stoppedAtEnd) && !autoAdvancing) {
       autoAdvancing = true;
+      nearEndSeen = false;
       setTimeout(async () => {
         try { await randomTrack(); }
+        catch (e) { setStatus(e.message || String(e)); }
         finally { autoAdvancing = false; }
-      }, 250);
+      }, 180);
     }
     if (position > 0) lastPlaybackPosition = position;
   });
@@ -483,7 +491,9 @@ async function randomTrack() {
     if (!track) throw new Error('랜덤 곡을 찾지 못했어. 다시 눌러줘.');
 
     currentTrack = track;
+    currentTrackId = track.id || null;
     lastPlaybackPosition = 0;
+    nearEndSeen = false;
     setCover(track);
     $('name').textContent = track.name;
     $('artist').textContent = track.artists.map(a => a.name).join(', '); $('headAlbum').textContent = track.album?.name || 'DISCOVERY';
@@ -566,7 +576,17 @@ setInterval(async () => {
   if (!player || isScrubbing) return;
   try {
     const state = await player.getCurrentState();
-    if (state) updateTimeline(state.position || 0, state.duration || currentDuration);
+    if (!state) return;
+    const p = state.position || 0;
+    const d = state.duration || currentDuration;
+    updateTimeline(p, d);
+    if (d > 0 && p >= d - 1800) nearEndSeen = true;
+    if (nearEndSeen && state.paused && !autoAdvancing && (p < 1200 || p >= d - 2500)) {
+      autoAdvancing = true;
+      nearEndSeen = false;
+      try { await randomTrack(); }
+      finally { autoAdvancing = false; }
+    }
   } catch (_) {}
 }, 500);
 
