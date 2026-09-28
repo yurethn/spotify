@@ -12,7 +12,7 @@ linear-gradient(180deg,#111 0%,#090909 45%,#050505 100%);padding:22px}
 .brand{font-weight:900;letter-spacing:-.5px;font-size:22px}
 .badge{font-size:12px;color:#8f8f8f;background:#151515;border:1px solid #242424;padding:7px 10px;border-radius:999px}
 .card{background:linear-gradient(180deg,rgba(30,30,30,.95),rgba(15,15,15,.98));border:1px solid #242424;border-radius:30px;padding:20px;box-shadow:0 28px 80px rgba(0,0,0,.45);backdrop-filter:blur(20px)}
-.coverWrap{position:relative;isolation:isolate}.coverGlow{position:absolute;inset:8%;z-index:-1;filter:blur(52px);opacity:.42;border-radius:40px;transform:scale(1.12);transition:background .4s ease}
+.coverWrap{position:relative;isolation:isolate}.coverGlow{position:absolute;inset:8%;z-index:-1;filter:blur(56px) saturate(1.45);opacity:.5;border-radius:40px;transform:scale(1.14);background-size:cover;background-position:center;transition:background-image .35s ease,opacity .35s ease}
 .cover{width:100%;aspect-ratio:1;border-radius:22px;object-fit:cover;background:#181818;box-shadow:0 24px 60px rgba(0,0,0,.45)}
 .nowpill{position:absolute;left:14px;top:14px;background:rgba(0,0,0,.65);backdrop-filter:blur(10px);padding:7px 10px;border-radius:999px;font-size:12px;font-weight:800}
 .title{font-size:30px;line-height:1.08;font-weight:900;letter-spacing:-.8px;margin:20px 0 7px;text-align:left}
@@ -25,7 +25,7 @@ linear-gradient(180deg,#111 0%,#090909 45%,#050505 100%);padding:22px}
 .seek::-moz-range-thumb{width:18px;height:18px;border-radius:50%;background:var(--green);border:0;opacity:0}
 .seek.dragging::-moz-range-thumb{opacity:1}
 .times{display:flex;justify-content:space-between;color:#929292;font-size:12px;margin-top:4px}
-.controls{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:12px;margin:8px 0 16px}
+.controls{display:grid;grid-template-columns:1fr 1fr;align-items:center;gap:12px;margin:8px 0 16px}
 .iconBtn{border:0;background:#222;color:#fff;border-radius:999px;width:52px;height:52px;font-size:22px;font-weight:800}
 .randomBtn{border:0;background:var(--green);color:#08120b;border-radius:999px;padding:17px 24px;font-size:17px;font-weight:900;box-shadow:0 10px 30px rgba(30,215,96,.2)}
 .openBtn{display:block;text-decoration:none;text-align:center;background:#202020;color:#fff;border-radius:999px;padding:14px;font-weight:800;margin-top:10px}
@@ -45,7 +45,7 @@ linear-gradient(180deg,#111 0%,#090909 45%,#050505 100%);padding:22px}
 @media (min-width:800px){.card{padding:26px}.cover{border-radius:26px}}
 </style></head>
 <body><main class="app">
-<div class="topbar"><div class="brand">Random Spotify</div><div class="badge">v8 · seek + lyrics fixes</div></div>
+<div class="topbar"><div class="brand">Random Spotify</div><div class="badge">v9 · stable</div></div>
 <div class="card">
 <section id="login" class="loginBox">
 <p>Spotify 카탈로그를 무작위로 탐색하고 이 페이지 안에서 재생합니다.</p>
@@ -57,7 +57,6 @@ linear-gradient(180deg,#111 0%,#090909 45%,#050505 100%);padding:22px}
 <div class="artist" id="artist">—</div>
 <div class="timeline"><input class="seek" id="seek" type="range" min="0" max="1000" value="0"><div class="times"><span id="pos">0:00</span><span id="dur">0:00</span></div></div>
 <div class="controls">
-<button class="iconBtn" id="prevRandom" aria-label="previous random">↺</button>
 <button class="randomBtn" id="random">🎲 RANDOM</button>
 <button class="iconBtn" id="playPause" aria-label="play pause">⏯</button>
 </div>
@@ -72,130 +71,443 @@ linear-gradient(180deg,#111 0%,#090909 45%,#050505 100%);padding:22px}
 </main>
 <script src="https://sdk.scdn.co/spotify-player.js"></script>
 <script>
-const $=x=>document.getElementById(x), ri=n=>Math.floor(Math.random()*n);
-let webPlayer=null, deviceId=null, sdkReady=false;
-window.onSpotifyWebPlaybackSDKReady=()=>{sdkReady=true; if(localStorage.t) initPlayer();};
-async function initPlayer(){if(webPlayer||!window.Spotify)return;webPlayer=new Spotify.Player({name:"Random Spotify iPad",getOAuthToken:async cb=>cb(await getToken()),volume:0.8,enableMediaSession:true});webPlayer.addListener("player_state_changed",s=>{if(!s)return;updateTimeline(s.position,s.duration);});webPlayer.addListener("ready",({device_id})=>{deviceId=device_id; $("status").textContent="웹 플레이어 준비 완료";});webPlayer.addListener("account_error",()=>{$("status").textContent="웹 재생에는 Spotify Premium이 필요해.";});webPlayer.addListener("authentication_error",({message})=>{$("status").textContent="인증 오류: "+message;});webPlayer.addListener("playback_error",({message})=>{$("status").textContent="재생 오류: "+message;});webPlayer.addListener("autoplay_failed",()=>{$("status").textContent="iPad가 자동재생을 막았어. RANDOM을 한 번 더 눌러줘.";});await webPlayer.connect();}
-function fmt(ms){let s=Math.floor(ms/1000),m=Math.floor(s/60);return m+":"+String(s%60).padStart(2,"0")}
-let syncedLines=[], currentLyricIndex=-1;
-function updateTimeline(p,d){if(seekDragging)return;
-  $("pos").textContent=fmt(p||0);$("dur").textContent=fmt(d||0);const pct=d?Math.round(p/d*1000):0;$("seek").value=pct;$("seek").style.setProperty("--seek-pct",(pct/10)+"%");
-  updateLiveLyrics(p||0);
-}
-let seekDragging=false;
-$("seek").addEventListener("pointerdown",()=>{seekDragging=true;$("seek").classList.add("dragging")});
-$("seek").addEventListener("input",async e=>{
-  const s=await webPlayer?.getCurrentState(); if(!s)return;
-  const target=s.duration*(+e.target.value/1000);
-  $("pos").textContent=fmt(target);
-  $("seek").style.setProperty("--seek-pct",((+e.target.value)/10)+"%");
-});
-$("seek").addEventListener("change",async e=>{
-  try{const s=await webPlayer?.getCurrentState();if(s)await webPlayer.seek(s.duration*(+e.target.value/1000))}
-  finally{seekDragging=false;$("seek").classList.remove("dragging")}
-});
-$("seek").addEventListener("pointerup",()=>{$("seek").classList.remove("dragging");seekDragging=false});
-setInterval(async()=>{if(!webPlayer)return;let s=await webPlayer.getCurrentState();if(s)updateTimeline(s.position,s.duration)},500);
 
-function parseLRC(text){
-  return text.split("\n").map(line=>{
-    const m=line.match(/^\[(\d{1,2}):(\d{2})(?:\.(\d{1,3}))?\]\s*(.*)$/);
-    if(!m)return null;
-    const ms=(+m[1]*60 + +m[2])*1000 + +(m[3]||0)*Math.pow(10,3-(m[3]||"").length);
-    return {ms,text:m[4].trim()};
-  }).filter(x=>x&&x.text);
+const CLIENT_ID = '566e82bf871c4c60aceee473d9d1d83c';
+const REDIRECT = 'https://yurethn.github.io/spotify/';
+const AUTH_VERSION = '3';
+const ACCOUNTS = 'https://accounts.spotify.com';
+const API = 'https://api.spotify.com/v1';
+const $ = id => document.getElementById(id);
+const rand = n => Math.floor(Math.random() * n);
+
+let player = null;
+let deviceId = null;
+let sdkReady = false;
+let isScrubbing = false;
+let currentDuration = 0;
+let syncedLines = [];
+let activeLyricIndex = -1;
+
+const seeds = ['a','e','i','o','u','b','c','d','f','g','h','j','k','l','m','n','p','r','s','t','w','y','가','나','다','라','마','사','아','愛','夜','the','love','blue','moon','1','2','3','7','9'];
+
+function fmt(ms = 0) {
+  const total = Math.max(0, Math.floor(ms / 1000));
+  return Math.floor(total / 60) + ':' + String(total % 60).padStart(2, '0');
 }
-function renderSyncedLyrics(lines){
-  const box=$("lyrics"); box.innerHTML="";
-  syncedLines=lines; currentLyricIndex=-1;
-  lines.forEach((line,i)=>{
-    const div=document.createElement("div");
-    div.className="lyricLine";
-    div.textContent=line.text;
-    div.dataset.i=i;
-    div.onclick=async()=>{try{if(!webPlayer)return;await webPlayer.activateElement();await webPlayer.seek(Math.max(0,line.ms));updateTimeline(line.ms,(await webPlayer.getCurrentState())?.duration||0)}catch(e){$("status").textContent="이 가사 위치로 이동하지 못했어."}};
+function setStatus(text) { $('status').textContent = text; }
+function randomString(length = 64) {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~';
+  const arr = new Uint32Array(length);
+  crypto.getRandomValues(arr);
+  return Array.from(arr, v => chars[v % chars.length]).join('');
+}
+async function sha256(text) {
+  return crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+}
+function base64url(buffer) {
+  return btoa(String.fromCharCode(...new Uint8Array(buffer))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+}
+
+async function beginLogin() {
+  const verifier = randomString(96);
+  const state = randomString(32);
+  sessionStorage.setItem('pkce_verifier', verifier);
+  sessionStorage.setItem('oauth_state', state);
+  const challenge = base64url(await sha256(verifier));
+  const params = new URLSearchParams({
+    client_id: CLIENT_ID,
+    response_type: 'code',
+    redirect_uri: REDIRECT,
+    scope: 'streaming user-read-email user-read-private user-read-playback-state user-modify-playback-state',
+    code_challenge_method: 'S256',
+    code_challenge: challenge,
+    state
+  });
+  location.href = ACCOUNTS + '/authorize?' + params;
+}
+
+function storeTokens(data) {
+  localStorage.setItem('access_token', data.access_token);
+  localStorage.setItem('expires_at', String(Date.now() + (data.expires_in - 45) * 1000));
+  if (data.refresh_token) localStorage.setItem('refresh_token', data.refresh_token);
+}
+async function exchangeCode(code) {
+  const verifier = sessionStorage.getItem('pkce_verifier');
+  if (!verifier) throw new Error('로그인 세션이 만료됐어. 다시 로그인해줘.');
+  const res = await fetch(ACCOUNTS + '/api/token', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+    body: new URLSearchParams({
+      client_id: CLIENT_ID,
+      grant_type: 'authorization_code',
+      code,
+      redirect_uri: REDIRECT,
+      code_verifier: verifier
+    })
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error_description || data.error || '토큰 발급 실패');
+  storeTokens(data);
+}
+async function getToken() {
+  const token = localStorage.getItem('access_token');
+  const expires = Number(localStorage.getItem('expires_at') || 0);
+  if (token && Date.now() < expires) return token;
+  const refresh = localStorage.getItem('refresh_token');
+  if (!refresh) return null;
+  const res = await fetch(ACCOUNTS + '/api/token', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+    body: new URLSearchParams({client_id: CLIENT_ID, grant_type: 'refresh_token', refresh_token: refresh})
+  });
+  const data = await res.json();
+  if (!res.ok) return null;
+  storeTokens({...data, refresh_token: data.refresh_token || refresh});
+  return data.access_token;
+}
+async function api(path, options = {}) {
+  const token = await getToken();
+  if (!token) throw new Error('Spotify 로그인이 필요해.');
+  const res = await fetch(API + path, {
+    ...options,
+    headers: {Authorization: 'Bearer ' + token, ...(options.headers || {})}
+  });
+  if (res.status === 204) return null;
+  const text = await res.text();
+  let data = null;
+  try { data = text ? JSON.parse(text) : null; } catch (_) {}
+  if (!res.ok) throw new Error(data?.error?.message || ('Spotify API 오류 ' + res.status));
+  return data;
+}
+
+window.onSpotifyWebPlaybackSDKReady = async () => {
+  sdkReady = true;
+  if (await getToken()) initPlayer();
+};
+
+async function initPlayer() {
+  if (player || !sdkReady || !window.Spotify) return;
+  player = new Spotify.Player({
+    name: 'Random Spotify iPad',
+    getOAuthToken: async cb => cb(await getToken()),
+    volume: 0.8,
+    enableMediaSession: true
+  });
+  player.addListener('ready', ({device_id}) => {
+    deviceId = device_id;
+    setStatus('웹 플레이어 준비 완료');
+  });
+  player.addListener('not_ready', () => {
+    deviceId = null;
+    setStatus('플레이어 연결이 끊겼어.');
+  });
+  player.addListener('account_error', () => setStatus('웹 재생에는 Spotify Premium이 필요해.'));
+  player.addListener('authentication_error', ({message}) => setStatus('인증 오류: ' + message));
+  player.addListener('playback_error', ({message}) => setStatus('재생 오류: ' + message));
+  player.addListener('autoplay_failed', () => setStatus('RANDOM 버튼을 한 번 더 눌러 재생을 활성화해줘.'));
+  player.addListener('player_state_changed', state => {
+    if (!state) return;
+    currentDuration = state.duration || currentDuration;
+    if (!isScrubbing) updateTimeline(state.position || 0, currentDuration);
+  });
+  await player.connect();
+}
+
+function updateTimeline(position, duration) {
+  currentDuration = duration || currentDuration;
+  $('pos').textContent = fmt(position);
+  $('dur').textContent = fmt(currentDuration);
+  const pct = currentDuration ? Math.max(0, Math.min(1000, Math.round(position / currentDuration * 1000))) : 0;
+  $('seek').value = pct;
+  $('seek').style.setProperty('--seek-pct', (pct / 10) + '%');
+  updateLiveLyrics(position);
+}
+
+async function seekTo(ms) {
+  const target = Math.max(0, Math.min(Math.round(ms), Math.max(0, currentDuration - 250)));
+  let ok = false;
+  if (player) {
+    try {
+      await player.seek(target);
+      ok = true;
+    } catch (_) {}
+  }
+  if (!ok && deviceId) {
+    try {
+      await api('/me/player/seek?position_ms=' + target + '&device_id=' + encodeURIComponent(deviceId), {method: 'PUT'});
+      ok = true;
+    } catch (_) {}
+  }
+  if (!ok) throw new Error('재생 위치를 이동하지 못했어.');
+  updateTimeline(target, currentDuration);
+}
+
+function bindSeekBar() {
+  const seek = $('seek');
+  const start = () => {
+    isScrubbing = true;
+    seek.classList.add('dragging');
+  };
+  const preview = () => {
+    const target = currentDuration * (Number(seek.value) / 1000);
+    $('pos').textContent = fmt(target);
+    seek.style.setProperty('--seek-pct', (Number(seek.value) / 10) + '%');
+  };
+  const finish = async () => {
+    if (!isScrubbing) return;
+    const target = currentDuration * (Number(seek.value) / 1000);
+    isScrubbing = false;
+    seek.classList.remove('dragging');
+    try { await seekTo(target); } catch (e) { setStatus(e.message); }
+  };
+  seek.addEventListener('pointerdown', start);
+  seek.addEventListener('touchstart', start, {passive: true});
+  seek.addEventListener('input', preview);
+  seek.addEventListener('change', finish);
+  seek.addEventListener('pointerup', finish);
+  seek.addEventListener('touchend', finish);
+}
+
+function parseLRC(text) {
+  const lines = [];
+  for (const raw of String(text || '').split(/\r?\n/)) {
+    const m = raw.match(/^\[(\d{1,2}):(\d{2})(?:[.:](\d{1,3}))?\]\s*(.*)$/);
+    if (!m || !m[4].trim()) continue;
+    const frac = m[3] ? Number(m[3].padEnd(3, '0').slice(0, 3)) : 0;
+    lines.push({
+      ms: (Number(m[1]) * 60 + Number(m[2])) * 1000 + frac,
+      text: m[4].trim()
+    });
+  }
+  return lines.sort((a, b) => a.ms - b.ms);
+}
+
+function renderSyncedLyrics(lines) {
+  syncedLines = lines;
+  activeLyricIndex = -1;
+  const box = $('lyrics');
+  box.innerHTML = '';
+  lines.forEach(line => {
+    const div = document.createElement('button');
+    div.type = 'button';
+    div.className = 'lyricLine';
+    div.textContent = line.text;
+    div.addEventListener('click', async () => {
+      try { await seekTo(line.ms); } catch (e) { setStatus(e.message); }
+    });
     box.appendChild(div);
   });
 }
-function updateLiveLyrics(position){
-  if(!syncedLines.length)return;
-  let idx=-1;
-  for(let i=0;i<syncedLines.length;i++){if(position>=syncedLines[i].ms)idx=i;else break}
-  if(idx===currentLyricIndex)return;
-  currentLyricIndex=idx;
-  const els=[...$("lyrics").querySelectorAll(".lyricLine")];
-  els.forEach((el,i)=>{el.classList.toggle("active",i===idx);el.classList.toggle("past",i<idx)});
-  const active=els[idx];if(active){const card=$("lyricsCard");card.scrollTo({top:Math.max(0,active.offsetTop-card.clientHeight/2+active.clientHeight/2),behavior:"smooth"});}
+
+function updateLiveLyrics(position) {
+  if (!syncedLines.length) return;
+  let idx = -1;
+  for (let i = 0; i < syncedLines.length; i++) {
+    if (position >= syncedLines[i].ms) idx = i;
+    else break;
+  }
+  if (idx === activeLyricIndex) return;
+  activeLyricIndex = idx;
+  const lines = [...$('lyrics').querySelectorAll('.lyricLine')];
+  lines.forEach((el, i) => {
+    el.classList.toggle('active', i === idx);
+    el.classList.toggle('past', i < idx);
+  });
+  const active = lines[idx];
+  if (active) {
+    const card = $('lyricsCard');
+    const target = active.offsetTop - card.clientHeight / 2 + active.clientHeight / 2;
+    card.scrollTo({top: Math.max(0, target), behavior: 'smooth'});
+  }
 }
-function albumGlow(img,url){
-  const glow=$("coverGlow");
-  // Try canvas extraction first.
-  const cv=document.createElement("canvas");cv.width=cv.height=24;const x=cv.getContext("2d");
-  const fallback=()=>{
-    let h=0;for(const ch of (url||""))h=(h*31+ch.charCodeAt(0))>>>0;
-    const hue=h%360;
-    glow.style.background="radial-gradient(circle,hsla("+hue+",72%,54%,.95),hsla("+hue+",72%,40%,.42) 42%,transparent 72%)";
-  };
-  const run=()=>{try{
-    x.drawImage(img,0,0,24,24);const d=x.getImageData(0,0,24,24).data;let r=0,g=0,b=0,w=0;
-    for(let i=0;i<d.length;i+=4){if(d[i+3]<120)continue;const mx=Math.max(d[i],d[i+1],d[i+2]),mn=Math.min(d[i],d[i+1],d[i+2]);const sat=mx-mn;const wt=.3+sat/255;r+=d[i]*wt;g+=d[i+1]*wt;b+=d[i+2]*wt;w+=wt}
-    if(!w)return fallback();
-    r=Math.round(r/w);g=Math.round(g/w);b=Math.round(b/w);
-    glow.style.background="radial-gradient(circle,rgba("+r+","+g+","+b+",.98),rgba("+r+","+g+","+b+",.46) 42%,transparent 72%)";
-  }catch(e){fallback()}};
-  if(img.complete)run();else img.addEventListener("load",run,{once:true});
+
+function normalizeTitle(s) {
+  return String(s || '')
+    .replace(/\s*[-–—]\s*(remaster(ed)?|live|radio edit|edit|version).*$/i, '')
+    .replace(/\s*\((remaster(ed)?|live|radio edit|edit|version)[^)]*\)\s*$/i, '')
+    .trim();
 }
-async function loadLyrics(track){
-  const card=$("lyricsCard"),box=$("lyrics"),hint=$("lyricsHint");
-  card.classList.add("hide");box.innerHTML="";hint.textContent="";syncedLines=[];currentLyricIndex=-1;
-  try{
-    const artist=track.artists?.[0]?.name||"",album=track.album?.name||"",duration=Math.round(track.duration_ms/1000);
-    const candidates=[];
-    const queries=[
-      {track_name:track.name,artist_name:artist,album_name:album,duration},
-      {track_name:track.name,artist_name:artist,duration},
-      {track_name:track.name,artist_name:artist},
-      {q:track.name+" "+artist}
-    ];
-    for(const q of queries){
-      const endpoint=q.q?"/api/search?":"/api/get?";
-      const r=await fetch("https://lrclib.net"+endpoint+new URLSearchParams(q));
-      if(!r.ok)continue;
-      const d=await r.json();
-      if(Array.isArray(d)) candidates.push(...d);
-      else if(d) candidates.push(d);
-      if(candidates.some(x=>x.syncedLyrics||x.plainLyrics)) break;
-    }
-    const best=candidates.find(x=>x.syncedLyrics)||candidates.find(x=>x.plainLyrics);
-    if(!best)return;
-    if(best.syncedLyrics){
-      const lines=parseLRC(best.syncedLyrics);
-      if(lines.length){renderSyncedLyrics(lines);hint.textContent="실시간";card.classList.remove("hide");return}
-    }
-    if(best.plainLyrics?.trim()){
-      const pre=document.createElement("div");pre.className="plainLyrics";pre.textContent=best.plainLyrics.trim();box.appendChild(pre);
-      hint.textContent="가사";card.classList.remove("hide");
-    }
-  }catch(e){}
+
+function scoreLyricsCandidate(item, title, artist, durationSec) {
+  let score = 0;
+  const itemTitle = String(item.trackName || '').toLowerCase();
+  const itemArtist = String(item.artistName || '').toLowerCase();
+  if (itemTitle === title.toLowerCase()) score += 7;
+  else if (itemTitle.includes(title.toLowerCase())) score += 4;
+  if (itemArtist.includes(artist.toLowerCase())) score += 5;
+  if (item.syncedLyrics) score += 4;
+  if (item.duration && durationSec) {
+    const delta = Math.abs(Number(item.duration) - durationSec);
+    score += Math.max(0, 3 - delta / 4);
+  }
+  return score;
 }
-async function forceReauth(){localStorage.removeItem("t");localStorage.removeItem("r");localStorage.removeItem("exp");sessionStorage.clear();location.reload();}
-async function playHere(uri){if(!webPlayer)await initPlayer();if(!deviceId)throw Error("웹 플레이어 준비 중이야. 잠시 후 다시 눌러줘.");await webPlayer.activateElement();let t=await getToken();let r=await fetch(API+"/me/player/play?device_id="+encodeURIComponent(deviceId),{method:"PUT",headers:{Authorization:"Bearer "+t,"Content-Type":"application/json"},body:JSON.stringify({uris:[uri]})});if(!r.ok){let x=await r.text();if(r.status===401&&(x.includes("Permissions missing")||x.includes("permission"))){localStorage.removeItem("t");localStorage.removeItem("r");localStorage.removeItem("exp");throw Error("재생 권한을 새로 받아야 해. 페이지를 새로고침한 뒤 Spotify 로그인을 다시 눌러줘.");}throw Error("재생 시작 실패 ("+r.status+") "+x);}}
-const CLIENT_ID="566e82bf871c4c60aceee473d9d1d83c";
-const REDIRECT="https://yurethn.github.io/spotify/";
-const AUTH_VERSION="2";
-if(localStorage.authVersion!==AUTH_VERSION){localStorage.removeItem("t");localStorage.removeItem("r");localStorage.removeItem("exp");localStorage.authVersion=AUTH_VERSION;}
-const A="https://accounts.spotify.com", API="https://api.spotify.com/v1";
-function rnd(n=64){let c="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~",a=new Uint32Array(n),s="";crypto.getRandomValues(a);a.forEach(v=>s+=c[v%c.length]);return s}
-async function hash(s){return crypto.subtle.digest("SHA-256",new TextEncoder().encode(s))}
-function b64(b){return btoa(String.fromCharCode(...new Uint8Array(b))).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"")}
-$("loginBtn").onclick=async()=>{let v=rnd(96),state=rnd(30);sessionStorage.v=v;sessionStorage.state=state;let ch=b64(await hash(v));location.href=A+"/authorize?"+new URLSearchParams({client_id:CLIENT_ID,response_type:"code",redirect_uri:REDIRECT,scope:"streaming user-read-email user-read-private user-read-playback-state user-modify-playback-state",code_challenge_method:"S256",code_challenge:ch,state})};
-async function token(code){let r=await fetch(A+"/api/token",{method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded"},body:new URLSearchParams({client_id:CLIENT_ID,grant_type:"authorization_code",code,redirect_uri:REDIRECT,code_verifier:sessionStorage.v})}),d=await r.json();if(!r.ok)throw Error(d.error_description||d.error);localStorage.t=d.access_token;localStorage.exp=Date.now()+(d.expires_in-30)*1000;if(d.refresh_token)localStorage.r=d.refresh_token}
-async function getToken(){if(localStorage.t&&Date.now()<+localStorage.exp)return localStorage.t;if(!localStorage.r)return null;let r=await fetch(A+"/api/token",{method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded"},body:new URLSearchParams({client_id:CLIENT_ID,grant_type:"refresh_token",refresh_token:localStorage.r})}),d=await r.json();if(!r.ok)return null;localStorage.t=d.access_token;localStorage.exp=Date.now()+(d.expires_in-30)*1000;return d.access_token}
-async function api(p){let t=await getToken(),r=await fetch(API+p,{headers:{Authorization:"Bearer "+t}}),d=await r.json();if(!r.ok)throw Error(d.error?.message||"Spotify API error");return d}
-const seeds=["a","e","i","o","u","b","c","d","f","g","h","j","k","l","m","n","p","r","s","t","w","y","가","나","다","라","마","사","아","愛","夜","the","love","blue","moon","1","2","3","7","9"];
-async function randomTrack(){let st=$("status");st.textContent="랜덤 탐색 중…";try{let track=null;for(let tries=0;tries<8&&!track;tries++){let q=seeds[ri(seeds.length)],f=await api("/search?type=track&limit=10&q="+encodeURIComponent(q));let total=f.tracks?.total||0;if(!total)continue;let max=Math.min(Math.max(total-10,0),990),off=max?ri(Math.floor(max/10)+1)*10:0,d=off?await api("/search?type=track&limit=10&offset="+off+"&q="+encodeURIComponent(q)):f,items=d.tracks?.items||[];if(items.length)track=items[ri(items.length)]}if(!track)throw Error("곡을 못 찾았어. 다시 눌러줘.");const coverUrl=track.album?.images?.[0]?.url||"";$("cover").src=coverUrl;albumGlow($("cover"),coverUrl);$("name").textContent=track.name;$("artist").textContent=track.artists.map(x=>x.name).join(", ");$("open").href=track.external_urls.spotify;window.lastTrackUrl=track.external_urls.spotify;updateTimeline(0,track.duration_ms);loadLyrics(track);st.textContent="재생 시작 중…";await playHere(track.uri);st.textContent="▶ 사이트에서 재생 중"}catch(e){st.textContent=e.message}}
-$("random").onclick=randomTrack;
-$("playPause").onclick=async()=>{if(webPlayer)await webPlayer.togglePlay()};
-$("prevRandom").onclick=()=>{ if(window.lastTrackUrl) window.open(window.lastTrackUrl,"_blank"); };
-(async()=>{try{let p=new URLSearchParams(location.search),code=p.get("code");if(code){if(p.get("state")!==sessionStorage.state)throw Error("로그인 검증 실패");await token(code);history.replaceState({},"",REDIRECT)}if(await getToken()){$("login").classList.add("hide");$("player").classList.remove("hide");if(sdkReady)await initPlayer()}}catch(e){alert(e.message)}})();
+
+async function fetchLyrics(track) {
+  const card = $('lyricsCard');
+  const box = $('lyrics');
+  const hint = $('lyricsHint');
+  card.classList.add('hide');
+  box.innerHTML = '';
+  hint.textContent = '';
+  syncedLines = [];
+  activeLyricIndex = -1;
+
+  const artist = track.artists?.[0]?.name || '';
+  const title = normalizeTitle(track.name);
+  const duration = Math.round(track.duration_ms / 1000);
+  const all = [];
+  const urls = [
+    'https://lrclib.net/api/get?' + new URLSearchParams({
+      track_name: title,
+      artist_name: artist,
+      album_name: track.album?.name || '',
+      duration
+    }),
+    'https://lrclib.net/api/search?' + new URLSearchParams({
+      track_name: title,
+      artist_name: artist
+    }),
+    'https://lrclib.net/api/search?' + new URLSearchParams({
+      q: title + ' ' + artist
+    })
+  ];
+
+  for (const url of urls) {
+    try {
+      const res = await fetch(url);
+      if (!res.ok) continue;
+      const data = await res.json();
+      if (Array.isArray(data)) all.push(...data);
+      else if (data) all.push(data);
+    } catch (_) {}
+  }
+
+  if (!all.length) return;
+  all.sort((a, b) => scoreLyricsCandidate(b, title, artist, duration) - scoreLyricsCandidate(a, title, artist, duration));
+  const best = all[0];
+
+  if (best?.syncedLyrics) {
+    const lines = parseLRC(best.syncedLyrics);
+    if (lines.length) {
+      renderSyncedLyrics(lines);
+      hint.textContent = '실시간';
+      card.classList.remove('hide');
+      return;
+    }
+  }
+
+  if (best?.plainLyrics?.trim()) {
+    const pre = document.createElement('div');
+    pre.className = 'plainLyrics';
+    pre.textContent = best.plainLyrics.trim();
+    box.appendChild(pre);
+    hint.textContent = '가사';
+    card.classList.remove('hide');
+  }
+}
+
+function setCover(track) {
+  const url = track.album?.images?.[0]?.url || '';
+  $('cover').src = url;
+  $('coverGlow').style.backgroundImage = url ? 'url("' + url + '")' : 'none';
+}
+
+async function playTrack(track) {
+  if (!player) await initPlayer();
+  if (!player || !deviceId) throw new Error('웹 플레이어가 아직 준비되지 않았어. RANDOM을 한 번 더 눌러줘.');
+  await player.activateElement();
+  await api('/me/player/play?device_id=' + encodeURIComponent(deviceId), {
+    method: 'PUT',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({uris: [track.uri]})
+  });
+}
+
+async function randomTrack() {
+  setStatus('랜덤 탐색 중…');
+  $('random').disabled = true;
+
+  try {
+    let track = null;
+
+    for (let attempt = 0; attempt < 8 && !track; attempt++) {
+      const q = seeds[rand(seeds.length)];
+      const first = await api('/search?type=track&limit=10&offset=0&q=' + encodeURIComponent(q));
+      const total = first?.tracks?.total || 0;
+      if (!total) continue;
+
+      const maxOffset = Math.min(Math.max(total - 10, 0), 990);
+      const offset = maxOffset ? rand(Math.floor(maxOffset / 10) + 1) * 10 : 0;
+      const page = offset === 0
+        ? first
+        : await api('/search?type=track&limit=10&offset=' + offset + '&q=' + encodeURIComponent(q));
+
+      const items = (page?.tracks?.items || []).filter(t => t?.uri && t?.is_playable !== false);
+      if (items.length) track = items[rand(items.length)];
+    }
+
+    if (!track) throw new Error('랜덤 곡을 찾지 못했어. 다시 눌러줘.');
+
+    setCover(track);
+    $('name').textContent = track.name;
+    $('artist').textContent = track.artists.map(a => a.name).join(', ');
+    $('open').href = track.external_urls.spotify;
+    currentDuration = track.duration_ms || 0;
+    updateTimeline(0, currentDuration);
+    fetchLyrics(track);
+
+    setStatus('재생 시작 중…');
+    await playTrack(track);
+    setStatus('▶ 사이트에서 재생 중');
+  } catch (e) {
+    setStatus(e.message || String(e));
+  } finally {
+    $('random').disabled = false;
+  }
+}
+
+async function init() {
+  if (localStorage.getItem('auth_version') !== AUTH_VERSION) {
+    ['access_token','refresh_token','expires_at','t','r','exp'].forEach(k => localStorage.removeItem(k));
+    localStorage.setItem('auth_version', AUTH_VERSION);
+  }
+
+  $('loginBtn').addEventListener('click', beginLogin);
+  $('random').addEventListener('click', randomTrack);
+  $('playPause').addEventListener('click', async () => {
+    if (player) await player.togglePlay();
+  });
+  bindSeekBar();
+
+  const params = new URLSearchParams(location.search);
+  if (params.get('error')) throw new Error('Spotify 로그인 오류: ' + params.get('error'));
+
+  const code = params.get('code');
+  if (code) {
+    if (params.get('state') !== sessionStorage.getItem('oauth_state')) throw new Error('로그인 검증 실패');
+    await exchangeCode(code);
+    history.replaceState({}, '', REDIRECT);
+  }
+
+  if (await getToken()) {
+    $('login').classList.add('hide');
+    $('player').classList.remove('hide');
+    if (sdkReady) await initPlayer();
+  }
+}
+
+setInterval(async () => {
+  if (!player || isScrubbing) return;
+  try {
+    const state = await player.getCurrentState();
+    if (state) updateTimeline(state.position || 0, state.duration || currentDuration);
+  } catch (_) {}
+}, 500);
+
+init().catch(e => {
+  console.error(e);
+  alert(e.message || String(e));
+});
+
 </script></body></html>
